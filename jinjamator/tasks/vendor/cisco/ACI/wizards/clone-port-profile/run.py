@@ -21,6 +21,9 @@ slot_number_re=re.compile(r'e\d+')
 
 remove_hport_children=[]
 
+
+
+
 def clone_accportgrp(src_dn,dst_dn):
     if src_dn == dst_dn:
         log.info(f'skipping clone of source to itself. {src_dn}')
@@ -33,7 +36,7 @@ def clone_accportgrp(src_dn,dst_dn):
     
     self.configuration['data']=json.dumps(src_data)
     sleep(0.5)
-    task.run('helper/send_data.j2',self.configuration)
+    task.run('.helper/send_data.j2',self.configuration)
     
 
 def convert_portgrp_dn(src_dn, target_policy_group_name):
@@ -60,39 +63,40 @@ def convert_portgrp_dn(src_dn, target_policy_group_name):
 
     return target_dn
 
-# /api/node/class/infraFexP.json
-# /api/node/class/infraAccPortP.json
 
-
-
+source_type = None
 base_data=cisco.aci.query(f"/api/node/mo/uni/infra/accportprof-{source_policy_group_name}.json?rsp-subtree=full&rsp-prop-include=config-only")["imdata"]
 if not base_data:
     base_data=cisco.aci.query(f"/api/node/mo/uni/infra/fexprof-{source_policy_group_name}.json?rsp-subtree=full&rsp-prop-include=config-only")["imdata"]
 for base_obj in base_data:
     
     base_obj_type=list(base_obj.keys())[0]
-    if base_obj_type not in  [ 'infraAccPortP' ]:
-        raise (f"Unsupported base object type {base_obj_type}")
+
+    if base_obj_type == "infraAccPortP":
+        log.info("Source is a leaf switch")
+        source_type="leaf"
+    elif base_obj_type == "infraFexP":
+        log.info("Source is a FEX")
+        source_type="fex"
+    else:
+        raise ValueError(f"Unsupported base object type {base_obj_type} only infraAccPortP or infraFexP supported.")
 
     for hport_idx,infra_hports in enumerate(base_obj[base_obj_type]['children']):
-        if not "infraHPortS" in infra_hports:
-            raise ValueError(f"Unexpected Object {infra_hports}")
-        for idx,accportgrp in enumerate(infra_hports['infraHPortS'].get('children',[])):
-        
+
+
+        for idx,accportgrp in enumerate(infra_hports.get('infraHPortS',{}).get('children',[])):
+
             if not "infraRsAccBaseGrp" in accportgrp:
                 log.info(f"skipping {list(accportgrp.keys())[0]}")
                 continue
             target_portgrp_dn=convert_portgrp_dn(accportgrp['infraRsAccBaseGrp']["attributes"]["tDn"],target_policy_group_name)
             if '/fexbundle-' in target_portgrp_dn and target_type == 'fex':
-                log.error('Cannot attach FEX on FEX -> skipping')
+                log.warning('Cannot attach FEX on FEX -> skipping')
                 remove_hport_children.append(hport_idx)
                 continue
-            clone_accportgrp(accportgrp['infraRsAccBaseGrp']["attributes"]["tDn"],target_portgrp_dn)
-            # infra_hports['infraHPortS'][idx]['infraRsAccBaseGrp']["attributes"]["tDn"]=
-            
+            clone_accportgrp(accportgrp['infraRsAccBaseGrp']["attributes"]["tDn"],target_portgrp_dn)            
             accportgrp['infraRsAccBaseGrp']["attributes"]["tDn"]=target_portgrp_dn
-
-            # task.run('helper/clone_accportgrp.j2')
+    
     for idx in remove_hport_children:
         del base_obj[base_obj_type]['children'][idx]
     base_obj[base_obj_type]['attributes']['name']=target_policy_group_name
@@ -102,9 +106,21 @@ for base_obj in base_data:
         base_obj["infraFexP"]=tmp
         base_obj['infraFexP']['attributes']['dn']=f'uni/infra/fexprof-{target_policy_group_name}'
         base_obj["infraFexP"]['attributes']['dn']=f'uni/infra/fexprof-{target_policy_group_name}'
+        if source_type == "leaf":
+            base_obj["infraFexP"]["children"].append(
+                json.loads('{"infraFexBndlGrp":{"attributes":{"annotation":"","descr":"","dn":"uni/infra/fexprof-' + target_policy_group_name + '/fexbundle-' + target_policy_group_name + '","name":"' +target_policy_group_name+ '","nameAlias":"","ownerKey":"","ownerTag":"","userdom":":all:"},"children":[{"infraRsMonFexInfraPol":{"attributes":{"annotation":"","tnMonInfraPolName":"","userdom":"all"}}}]}}')
+            )
+
     else:
         tmp=base_obj[base_obj_type]
         del base_obj[base_obj_type]
         base_obj["infraAccPortP"]=tmp
         base_obj["infraAccPortP"]['attributes']['dn']=f'uni/infra/accportprof-{target_policy_group_name}'
+        children_to_delete=[]
+        for idx,child in enumerate(base_obj["infraAccPortP"].get("children",[])):
+            if "infraFexBndlGrp" in child:
+                children_to_delete.append(idx)
+        for i in children_to_delete:
+            del base_obj["infraAccPortP"]["children"][idx]
+
     return {'imdata':[base_obj]}

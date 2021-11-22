@@ -14,25 +14,49 @@
 
 source_policy_group_name:
   form_step: 1
-  schema:
-  options:
-    order: 1
 {% if (apic_url is defined) and (((apic_username is defined) and (apic_password is defined)) or (apic_key is defined) and (apic_cert_name is defined) )%}
-    {% set info = cisco.aci.query('/api/node/class/fvAp.json?query-target-filter=and(wcard(fvAp.dn,"tn-' + tenant_name + '"))&order-by=fvAp.modTs|desc')['imdata'] %}
-    {% if info %}
-    typeahead:
-      config:
-        autoselect: True
-        highlight: True
-        hint: True
-        minLength: 1
-      datasets:
-        type: local
-        source:
-{% for node in info %}
-          - {{node['fvAp']['attributes']['name']}}
+    {% set infra_acc_portp_info = cisco.aci.query('/api/node/class/infraAccPortP.json?query-target=self&rsp-prop-include=config-only')['imdata'] %}
+    {% set infra_fexp_info = cisco.aci.query('/api/node/class/infraFexP.json?query-target=self&rsp-prop-include=config-only')['imdata'] %}
+  schema:
+    type: string
+    enum:
+{% for node in infra_acc_portp_info %}
+      - {{node['infraAccPortP']['attributes']['name']}}
+{% endfor  %}
+{% for node in infra_fexp_info %}
+      - {{node['infraFexP']['attributes']['name']}}  
 {% endfor  %}
 {% endif %}
-{% endif %}
-# target_policy_group_name:
-# target_type:
+    hideInitValidationError: True
+  options:
+    order: 1
+    type: select
+    multiple: False
+    multiselect:
+      enableFiltering: True
+      includeSelectAllOption: False
+      enableCaseInsensitiveFiltering: True
+
+      
+target_policy_group_name:
+  form_step: 1
+  options:
+    order: 2
+
+target_type:
+  form_step: 1
+  schema:
+    type: string
+    enum:
+      - leaf
+      - fex
+  options:
+    type: select
+    multiple: False
+    label: Target Type
+    optionLabels:
+      - Leaf
+      - Fabric Extender
+    helpers:
+      - Select if Target is a Leaf or a FEX
+    order: 3
