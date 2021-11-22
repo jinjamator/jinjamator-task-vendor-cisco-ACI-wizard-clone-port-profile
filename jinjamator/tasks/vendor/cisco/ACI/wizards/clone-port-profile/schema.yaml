@@ -1,0 +1,38 @@
+# Copyright 2021 Wilhelm Putz
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+source_policy_group_name:
+  form_step: 1
+  schema:
+  options:
+    order: 1
+{% if (apic_url is defined) and (((apic_username is defined) and (apic_password is defined)) or (apic_key is defined) and (apic_cert_name is defined) )%}
+    {% set info = cisco.aci.query('/api/node/class/fvAp.json?query-target-filter=and(wcard(fvAp.dn,"tn-' + tenant_name + '"))&order-by=fvAp.modTs|desc')['imdata'] %}
+    {% if info %}
+    typeahead:
+      config:
+        autoselect: True
+        highlight: True
+        hint: True
+        minLength: 1
+      datasets:
+        type: local
+        source:
+{% for node in info %}
+          - {{node['fvAp']['attributes']['name']}}
+{% endfor  %}
+{% endif %}
+{% endif %}
+# target_policy_group_name:
+# target_type:
