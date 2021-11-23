@@ -22,6 +22,13 @@ slot_number_re=re.compile(r'e\d+')
 remove_hport_children=[]
 
 
+# for vpc_domain in cisco.aci.query('/api/node/class/vpcDom.json')['imdata']:
+#     attr=vpc_domain['vpcDom']['attributes']
+#     log.info(attr['dn'].split('/')[2][5:])
+
+# import sys
+# sys.exit(0)
+
 
 
 def clone_accportgrp(src_dn,dst_dn):
@@ -53,6 +60,9 @@ def convert_portgrp_dn(src_dn, target_policy_group_name):
         invalid=False
     if obj_type == "accbundle" and po_number_re.match(tmp[-1]) and tmp[-2].lower() == 'vpc':
         log.info(f'VPC Port detected {src_dn}')
+        path_prefix='/'.join(src_dn.split('/')[:3])
+        target_dn=f"{path_prefix}/{obj_type}{separator}{vpc_target_policy_group_name}{separator}{tmp[-2]}{separator}{tmp[-1]}"
+        return target_dn
         invalid=False
     
     if invalid:
@@ -62,6 +72,9 @@ def convert_portgrp_dn(src_dn, target_policy_group_name):
     target_dn=f"{path_prefix}/{obj_type}{separator}{target_policy_group_name}{separator}{tmp[-2]}{separator}{tmp[-1]}"
 
     return target_dn
+
+vpc_lookup_table={}
+
 
 
 source_type = None

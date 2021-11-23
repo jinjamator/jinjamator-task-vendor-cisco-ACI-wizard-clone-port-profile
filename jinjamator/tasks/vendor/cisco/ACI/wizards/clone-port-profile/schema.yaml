@@ -32,6 +32,15 @@ source_policy_group_name:
     order: 1
     type: select
     multiple: False
+    optionLabels:
+{% for node in infra_acc_portp_info %}
+
+      - {{node['infraAccPortP']['attributes']['name']}}
+{% endfor  %}
+{% for node in infra_fexp_info %}
+      - {{node['infraFexP']['attributes']['name']}}  
+{% endfor  %}
+
     multiselect:
       enableFiltering: True
       includeSelectAllOption: False
@@ -40,8 +49,17 @@ source_policy_group_name:
       
 target_policy_group_name:
   form_step: 1
+  schema:
+    type: string
   options:
     order: 2
+      
+vpc_target_policy_group_name:
+  form_step: 1
+  schema:
+    type: string  
+  options:
+    order: 3
 
 target_type:
   form_step: 1
@@ -59,4 +77,6 @@ target_type:
       - Fabric Extender
     helpers:
       - Select if Target is a Leaf or a FEX
-    order: 3
+    order: 4
+
+    
